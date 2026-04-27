@@ -1,0 +1,32 @@
+from pydantic import BaseModel
+
+class Case(BaseModel):
+    age: int
+    gender: str
+    anxiety_score: int
+    depression_score: int
+    sleep_quality: int # de str pra int
+    stress_level: int
+    social_support: str
+    physical_activity: str
+    main_issue: str
+    intervention_type: str
+    intensity: int
+    weekly_frequency: int
+    recommendation_text: str
+    sleep_hours: float
+    symptom_duration_months: int
+    gad7_estimate: int
+    phq9_estimate: int
+    panic_symptoms: str
+    concentration_difficulty: str
+    irritability_level: int
+    appetite_change: str
+    prior_treatment: str
+    current_medication: str
+    trauma_history: str
+    substance_use_risk: str
+    work_or_study_impairment: str
+    bmi_estimate: float
+    comorbid_profile: str
+    clinical_severity: str
