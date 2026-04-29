@@ -2,6 +2,11 @@ from main import BancoDeCasos
 from cbr_similarity import build_problem_similarity, build_weights
 from arvore_pesos import treinar_arvore_pesos, extrair_pesos
 from cbr_cicle_kit import CBRCycle
+import cbrkit
+from collections import Counter
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+
 
 def run_similarity_tests():
     db = BancoDeCasos("cbr_psychology_110_cases_clinical.csv")
@@ -249,9 +254,100 @@ def debug_reuse(retrieval_result, query, weights, k=5):
 
     return results
 
-run_similarity_tests()
-run_arvore_pesos_tests()
-run_retrieval_debug()
+def teste_loo():
+    # 1. Preparação
+    db = BancoDeCasos("cbr_psychology_110_cases_clinical.csv")
+    cycle = CBRCycle(casebase=db.casebase)
+    
+    y_true, y_pred = [], []
+    errors_int, errors_freq = [], []
+    scores = []
+    
+    # Lista para armazenar detalhes dos erros para análise posterior
+    analise_falhas = []
+    
+    print(f"Iniciando teste de LOO com {len(db.casebase)} casos...")
+
+    # 2. Loop Único de Auditoria
+    for case_id, query_case in db.casebase.items():
+        # Isola o caso (Base de treino exclui a query atual)
+        base_treino = {cid: c for cid, c in db.casebase.items() if cid != case_id}
+        
+        # Auditoria de Recuperação (Retrieval)
+        res_retrieval = cycle.run_retrieval(query_case, casebase_externo=base_treino)
+        
+        # Identificamos quem é o vizinho vencedor
+        step = res_retrieval.final_step
+        melhor_id = step.ranking[0]
+        winner_case = base_treino[melhor_id]
+        
+        # Extração da similaridade (Lidando com objeto cbrkit ou float)
+        sim_data = step.similarities[melhor_id]
+        score = float(sim_data.value) if hasattr(sim_data, 'value') else float(sim_data)
+        scores.append(score)
+
+        # Auditoria de Adaptação (Reuse)
+        res_reuse = cycle.run_reuse(res_retrieval)
+        solucao_prevista = res_reuse.final_step.casebase[melhor_id]
+
+        # Coleta de dados para estatísticas
+        y_true.append(query_case.intervention_type)
+        y_pred.append(solucao_prevista["intervention_type"])
+        
+        # Métricas de erro de intensidade/frequência
+        errors_int.append(abs(query_case.intensity - solucao_prevista["intensity"]))
+        errors_freq.append(abs(query_case.weekly_frequency - solucao_prevista["weekly_frequency"]))
+
+        # 3. Registro de Auditoria (Se houver erro de classificação)
+        if query_case.intervention_type != solucao_prevista["intervention_type"]:
+            analise_falhas.append({
+                "id_query": case_id,
+                "id_winner": melhor_id,
+                "sim": score,
+                "txt_query": query_case.main_issue,
+                "txt_winner": winner_case.main_issue,
+                "esperado": query_case.intervention_type,
+                "recebido": solucao_prevista["intervention_type"]
+            })
+
+    # 4. Cálculos Finais
+    acc = accuracy_score(y_true, y_pred)
+    prec, rec, f1, _ = precision_recall_fscore_support(y_true, y_pred, average='weighted', zero_division=0)
+    distribuicao = dict(Counter(y_true))
+    clones = sum(1 for s in scores if s >= 0.99)
+
+    # 5. Relatório Consolidado
+    print("\n" + "="*70)
+    print("RELATÓRIO LOO")
+    print("="*70)
+    #print(f"Distribuição de Classes: {distribuicao}")
+    print(f"Média de Similaridade: {np.mean(scores):.4f}")
+    print(f"Casos com 'vizinhos idênticos' (Sim >= 0.99): {clones}")
+    print("-" * 70)
+    print(f"Acurácia:  {acc:.2%}")
+    print(f"F1-Score:  {f1:.2%}")
+    print(f"MAE Intensidade: {np.mean(errors_int):.2f}")
+    print(f"MAE Frequência:  {np.mean(errors_freq):.2f}")
+    print("-" * 70)
+
+    # 6. Exibição dos Top 5 Erros Críticos (Onde a similaridade foi alta mas a classe errada)
+    print("\nANÁLISE DE FALHAS (Top 5 Conflitos de Alta Similaridade):")
+    # Ordena os erros por similaridade (do mais "confuso" para o menos)
+    analise_falhas.sort(key=lambda x: x['sim'], reverse=True)
+    
+    for erro in analise_falhas[:5]:
+        print(f"[{erro['id_query']} <-> {erro['id_winner']}] Sim: {erro['sim']:.4f}")
+        print(f"  Q: '{erro['txt_query']}'")
+        print(f"  W: '{erro['txt_winner']}'")
+        print(f"  Classe: Esperava {erro['esperado']} mas veio {erro['recebido']}")
+        print("-" * 40)
+    
+    print("="*70 + "\n")
+    
+    
+#run_similarity_tests()
+#run_arvore_pesos_tests()
+#run_retrieval_debug()
 
 query = type("Query", (), {
     "age": 29,
@@ -286,4 +382,6 @@ casebase = db.get_casebase()
 cycle = CBRCycle(casebase)
 retrieval_result = cycle.run_retrieval(query)
 weights = build_weights(casebase)
-debug_reuse(retrieval_result, query, weights)
+#debug_reuse(retrieval_result, query, weights)
+
+teste_loo()

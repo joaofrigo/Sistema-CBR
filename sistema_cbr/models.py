@@ -5,7 +5,7 @@ class Case(BaseModel):
     gender: str
     anxiety_score: int
     depression_score: int
-    sleep_quality: int # de str pra int
+    sleep_quality: int 
     stress_level: int
     social_support: str
     physical_activity: str

@@ -40,3 +40,5 @@ Retrieval usa a engine de similaridade para pegar os casos similares.
         len(case.comorbid_profile)
 
         o hash e o len são inuteis para a arvore. Mudar depois
+
+        REFAZER O LOO CRINGE OTÁRIO BOBOCA COM RESTRIÇÕES

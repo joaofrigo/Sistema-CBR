@@ -1,5 +1,4 @@
 import cbrkit
-import similarity_config
 from models import Case
 
 
